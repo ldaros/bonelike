@@ -15,9 +15,9 @@ namespace Bone
         private InputHandler _inputHandler;
         private Vector3 _moveDirection;
 
-        private Transform _myTransform;
-        private AnimatorHandler _animatorHandler;
+        private Transform _transform;
         private Rigidbody _rigidbody;
+        private AnimatorHandler _animatorHandler;
         private GameObject _normalCamera;
 
         private void Awake()
@@ -27,7 +27,7 @@ namespace Bone
             _inputHandler = GetComponent<InputHandler>();
             _animatorHandler = GetComponentInChildren<AnimatorHandler>();
             _cameraObject = Camera.main.transform;
-            _myTransform = transform;
+            _transform = transform;
         }
 
         private void Update()
@@ -36,6 +36,7 @@ namespace Bone
             _moveDirection = _cameraObject.forward * _inputHandler.Vertical;
             _moveDirection += _cameraObject.right * _inputHandler.Horizontal;
             _moveDirection.Normalize();
+            _moveDirection.y = 0;
 
             // Calculate the player's velocity based on the movement direction and movement speed
             _moveDirection *= movementSpeed;
@@ -61,14 +62,11 @@ namespace Bone
             targetDirection.y = 0;
 
             // If the target direction is zero, use the current forward direction instead
-            if (targetDirection == Vector3.zero)
-            {
-                targetDirection = _myTransform.forward;
-            }
+            if (targetDirection == Vector3.zero) { targetDirection = _transform.forward; }
 
             // Calculate the target rotation based on the target direction and smoothly interpolate towards it
             Quaternion targetRotation = Quaternion.LookRotation(targetDirection);
-            _myTransform.rotation = Quaternion.Slerp(_myTransform.rotation, targetRotation, Time.deltaTime * rotationSpeed);
+            _transform.rotation = Quaternion.Slerp(_transform.rotation, targetRotation, Time.deltaTime * rotationSpeed);
         }
     }
 }

@@ -11,14 +11,19 @@ namespace Bone
         public float MouseY { get; private set; }
 
         private PlayerControls _inputActions;
+        private CameraHandler _cameraHandler;
         private Vector2 _movementInput;
         private Vector2 _cameraInput;
 
         private void Awake()
         {
             _inputActions = new PlayerControls();
+            _cameraHandler = GetComponent<CameraHandler>();
+
             _inputActions.PlayerMovement.Movement.performed += inputActions => _movementInput = inputActions.ReadValue<Vector2>();
             _inputActions.PlayerMovement.Camera.performed += i => _cameraInput = i.ReadValue<Vector2>();
+
+            _cameraHandler.EnableCursorLock();
         }
 
         private void OnEnable() { _inputActions.Enable(); }
