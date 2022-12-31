@@ -12,22 +12,19 @@ namespace Bone
         public bool B_Input { get; private set; }
 
         public bool rollFlag;
-        public bool isInteracting;
+        public bool sprintFlag;
+        public float rollInputTimer;
 
         private PlayerControls _inputActions;
-        private CameraHandler _cameraHandler;
         private Vector2 _movementInput;
         private Vector2 _cameraInput;
 
         private void Awake()
         {
             _inputActions = new PlayerControls();
-            _cameraHandler = GetComponent<CameraHandler>();
 
             _inputActions.PlayerMovement.Movement.performed += inputActions => _movementInput = inputActions.ReadValue<Vector2>();
             _inputActions.PlayerMovement.Camera.performed += i => _cameraInput = i.ReadValue<Vector2>();
-
-            _cameraHandler.EnableCursorLock();
         }
 
         private void OnEnable() { _inputActions.Enable(); }
@@ -37,7 +34,7 @@ namespace Bone
         private void Update()
         {
             UpdateInputValues();
-            handleRollInput();
+            handleBInput();
         }
 
         private void UpdateInputValues()
@@ -49,10 +46,22 @@ namespace Bone
             MouseY = _cameraInput.y;
         }
 
-        private void handleRollInput()
+        private void handleBInput()
         {
-            B_Input = _inputActions.PlayerActions.Roll.triggered;
-            if (B_Input) { rollFlag = true; }
+            B_Input = _inputActions.PlayerActions.Roll.IsPressed();
+            bool quickPress = rollInputTimer > 0 && rollInputTimer < 0.2f;
+
+            if (B_Input)
+            {
+                rollInputTimer += Time.deltaTime;
+                sprintFlag = true;
+            }
+            else
+            {
+                if (quickPress) { rollFlag = true; }
+                rollInputTimer = 0;
+                sprintFlag = false;
+            }
         }
     }
 }

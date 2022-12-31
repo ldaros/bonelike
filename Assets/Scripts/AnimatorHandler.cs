@@ -11,6 +11,7 @@ namespace Bone
         public Animator animator;
         public InputHandler inputHandler;
         public PlayerLocomotion playerLocomotion;
+        public PlayerManager playerManager;
         public bool canRotate;
 
         // Private variables
@@ -22,6 +23,7 @@ namespace Bone
             animator = GetComponent<Animator>();
             inputHandler = GetComponentInParent<InputHandler>();
             playerLocomotion = GetComponentInParent<PlayerLocomotion>();
+            playerManager = GetComponentInParent<PlayerManager>();
             _verticalHash = Animator.StringToHash("Vertical");
             _horizontalHash = Animator.StringToHash("Horizontal");
         }
@@ -33,10 +35,14 @@ namespace Bone
             animator.CrossFade(animation, AnimationTransitionDuration);
         }
 
-        public void UpdateAnimatorValues(float verticalMovement, float horizontalMovement)
+        public void UpdateAnimatorValues(float verticalMovement, float horizontalMovement, bool isSprinting, float delta)
         {
-            animator.SetFloat(_verticalHash, verticalMovement, AnimationDampTime, Time.deltaTime);
-            animator.SetFloat(_horizontalHash, horizontalMovement, AnimationDampTime, Time.deltaTime);
+            bool isMoving = verticalMovement != 0 || horizontalMovement != 0;
+            
+            if (isSprinting && isMoving ) { verticalMovement = 2; }
+            
+            animator.SetFloat(_verticalHash, verticalMovement, AnimationDampTime, delta);
+            animator.SetFloat(_horizontalHash, horizontalMovement, AnimationDampTime, delta);
         }
 
         public void EnableRotation() { canRotate = true; }
@@ -45,7 +51,7 @@ namespace Bone
 
         private void OnAnimatorMove()
         {
-            if (!inputHandler.isInteracting) return;
+            if (!playerManager.isInteracting) return;
             
             playerLocomotion.rigidbody.drag = 0;
             Vector3 deltaPosition = animator.deltaPosition;
