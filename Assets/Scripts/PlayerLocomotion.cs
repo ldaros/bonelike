@@ -1,204 +1,178 @@
+using System.Collections;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 namespace Bone
 {
+    [RequireComponent(typeof(CharacterController))]
     public class PlayerLocomotion : MonoBehaviour
     {
         [Header("Stats")]
-        [SerializeField]
-        float movementSpeed = 5;
-        [SerializeField]
-        float sprintSpeed = 7;
-        [SerializeField]
-        float rotationSpeed = 10;
-        [SerializeField]
-        float fallSpeed = 45;
+        public float movementSpeed = 5;
+        public float sprintSpeed = 7;
+        public float rotationSpeed = 10;
+        public float turnSmoothTime = 0.1f;
 
-        [Header("Ground and Air")]
-        [SerializeField]
-        float groundDetectionRayStart = 0.3f;
-        [SerializeField]
-        float minimumDistanceNeededToBeginFall = 1f;
-        [SerializeField]
-        float groundDirectionRayDistance = 0.2f;
-        [SerializeField]
-        LayerMask ignoreForGroundCheck;
-        [SerializeField]
-        public float timeToLand = 0.5f;
+        [Header("Physics")]
+        public float fallSpeed = 45;
+        public float distanceToFall = 1f;
+        public LayerMask groundLayers;
+        public float airTime = 0f;
 
-        public float inAirTimer;
-        public Vector3 moveDirection;
-        public new Rigidbody rigidbody;
+        [Header("Actions")]
+        public float rollVelocity = 0.1f;
+        public float rollDuration = 0.5f;
+        public float backstepVelocity = 0.1f;
+        public float backstepDuration = 0.3f;
+        public float jumpHeight = 0.5f;
+        public float jumpTime = 0.5f;
 
-        private Transform _cameraObject;
-        private InputHandler _inputHandler;
         private Transform _transform;
+        private InputHandler _inputHandler;
         private AnimatorHandler _animatorHandler;
         private PlayerManager _playerManager;
-
-        private Vector3 _normalVector;
-        private Vector3 _targetPosition;
+        private CameraHandler _cameraHandler;
+        private CharacterController _characterController;
+        private float _turnSmoothVelocity;
+        private Vector3 _moveDirection;
 
         private void Awake()
         {
-            // Set up references to other components
-            rigidbody = GetComponent<Rigidbody>();
             _playerManager = GetComponent<PlayerManager>();
             _inputHandler = GetComponent<InputHandler>();
+            _cameraHandler = GetComponent<CameraHandler>();
+            _characterController = GetComponent<CharacterController>();
             _animatorHandler = GetComponentInChildren<AnimatorHandler>();
-            _cameraObject = Camera.main.transform;
             _transform = transform;
         }
-
-        private void Start()
-        {
-            _playerManager.isGrounded = true;
-
-        }
-
         public void HandleMovement(float delta)
         {
+            if (_playerManager.isInteracting) return;
             if (_inputHandler.rollFlag) return;
 
-            if (_playerManager.isInteracting) return;
+            float horizontal = _inputHandler.Horizontal;
+            float vertical = _inputHandler.Vertical;
 
-            // Calculate the player's movement direction based on input and the camera's forward and right vectors
-            moveDirection = _cameraObject.forward * _inputHandler.Vertical;
-            moveDirection += _cameraObject.right * _inputHandler.Horizontal;
-            moveDirection.Normalize();
-            moveDirection.y = 0;
+            Vector3 direction = new Vector3(horizontal, 0f, vertical).normalized;
+            bool isMoving = direction.magnitude >= 0.1f;
 
-            // Calculate the player's velocity based on the movement direction and movement speed
+            float speed;
+
             if (_inputHandler.sprintFlag)
             {
                 _playerManager.isSprinting = true;
-                moveDirection *= sprintSpeed;
+                speed = sprintSpeed;
             }
-            else
-            {
-                moveDirection *= movementSpeed;
-            }
-
-            Vector3 projectedVelocity = Vector3.ProjectOnPlane(moveDirection, _normalVector);
-            rigidbody.velocity = projectedVelocity;
-
-            // Update the AnimatorHandler component with the playe r's movement amount
-            _animatorHandler.UpdateAnimatorValues(_inputHandler.MoveAmount, 0, _playerManager.isSprinting, delta);
-
-            // Rotate the player's character model towards the input direction if allowed by the AnimatorHandler component
-            if (_animatorHandler.canRotate) { HandleRotation(delta); }
-        }
-
-        private void HandleRotation(float delta)
-        {
-            // Calculate the target direction based on input
-            Vector3 targetDirection = Vector3.zero;
-            targetDirection = _cameraObject.forward * _inputHandler.Vertical;
-            targetDirection += _cameraObject.right * _inputHandler.Horizontal;
-
-            // Normalize the target direction and set its y component to 0 to prevent the character from tilting
-            targetDirection.Normalize();
-            targetDirection.y = 0;
-
-            // If the target direction is zero, use the current forward direction instead
-            if (targetDirection == Vector3.zero) { targetDirection = _transform.forward; }
-
-            // Calculate the target rotation based on the target direction and smoothly interpolate towards it
-            Quaternion targetRotation = Quaternion.LookRotation(targetDirection);
-            _transform.rotation = Quaternion.Slerp(_transform.rotation, targetRotation, rotationSpeed * delta);
-        }
-
-        public void HandleRollingAndSprinting(float delta)
-        {
-            if (_playerManager.isInteracting || !_inputHandler.rollFlag) { return; }
-
-            moveDirection = _cameraObject.forward * _inputHandler.Vertical;
-            moveDirection += _cameraObject.right * _inputHandler.Horizontal;
-
-            bool isMoving = _inputHandler.MoveAmount > 0;
+            else { speed = movementSpeed; }
 
             if (isMoving)
             {
-                _animatorHandler.PlayTargetAnimation("Rolling", true);
-                moveDirection.y = 0;
-                Quaternion rollRotation = Quaternion.LookRotation(moveDirection);
-                _transform.rotation = rollRotation;
+                float cameraYRotation = _cameraHandler.mainCamera.eulerAngles.y;
+
+                // Calculate the target angle for the character to face, and rotate towards it
+                float targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg + cameraYRotation;
+
+                float angle = Mathf.SmoothDampAngle(_transform.eulerAngles.y, targetAngle, ref _turnSmoothVelocity, turnSmoothTime);
+                _transform.rotation = Quaternion.Euler(0f, angle, 0f);
+
+
+                // Calculate the move direction based on the camera y-rotation, and the input direction
+                _moveDirection = Quaternion.Euler(0f, targetAngle, 0f) * Vector3.forward;
+                _characterController.Move(_moveDirection.normalized * speed * delta);
+            }
+
+            _animatorHandler.UpdateAnimatorValues(_inputHandler.MoveAmount, 0, _playerManager.isSprinting, delta);
+        }
+
+        public void HandleFalling(float delta)
+        {
+            bool isGrounded = Physics.Raycast(_transform.position, Vector3.down, 0.1f, groundLayers);
+            _playerManager.isGrounded = isGrounded;
+
+            if (!isGrounded)
+            {
+                if (airTime >= distanceToFall) { _animatorHandler.PlayTargetAnimation("Falling", true); }
+                _playerManager.isInAir = true;
+                airTime += delta;
+
+                _characterController.Move(_moveDirection.normalized * movementSpeed * delta + Vector3.down * fallSpeed * delta);
             }
             else
             {
-                _animatorHandler.UpdateAnimatorValues(300, 0, false, delta);
-                _animatorHandler.PlayTargetAnimation("Backstep", true);
+                if (airTime >= distanceToFall)
+                {
+                    _animatorHandler.PlayTargetAnimation("Land", true);
+                }
+                _playerManager.isInAir = false;
+                airTime = 0f;
             }
+
+            Color rayColor = isGrounded ? Color.green : Color.red;
+            Debug.DrawRay(_transform.position, Vector3.down, rayColor, distanceToFall);
+        }
+
+
+        public void HandleRolling(float delta)
+        {
+            if (_playerManager.isInteracting || !_inputHandler.rollFlag) { return; }
+
+            bool isMoving = _inputHandler.MoveAmount > 0;
+
+            if (isMoving) { StartCoroutine(RollingCo(delta)); }
+            else { StartCoroutine(BackstepCo(delta)); }
 
             _inputHandler.rollFlag = false;
         }
 
-        public void HandleFalling(float delta, Vector3 moveDirection)
+
+        private IEnumerator RollingCo(float delta)
         {
-            _playerManager.isGrounded = false;
+            _animatorHandler.PlayTargetAnimation("Rolling", true);
+            float startTime = delta;
 
-            RaycastHit hit;
-            Vector3 origin = _transform.position;
-            origin.y = groundDetectionRayStart;
-
-            if (Physics.Raycast(origin, _transform.forward, out hit))
+            while (delta < startTime + rollDuration)
             {
-                moveDirection = Vector3.zero;
+                delta += Time.deltaTime;
+                _characterController.Move(_moveDirection.normalized * rollVelocity * delta);
+                yield return null;
             }
+        }
 
-            if (_playerManager.isInAir)
+        private IEnumerator BackstepCo(float delta)
+        {
+            _animatorHandler.PlayTargetAnimation("Backstep", true);
+            float startTime = delta;
+
+            while (delta < startTime + backstepDuration)
             {
-                rigidbody.AddForce(-Vector3.up * fallSpeed);
-                rigidbody.AddForce(moveDirection * fallSpeed / 5f);
-            }
-
-            Vector3 direction = moveDirection;
-            direction.Normalize();
-            origin += direction * groundDirectionRayDistance;
-
-            _targetPosition = _transform.position;
-
-            Debug.DrawRay(origin, -Vector3.up * minimumDistanceNeededToBeginFall, Color.red, 0.1f, false);
-
-            bool grounded = Physics.Raycast(origin, -Vector3.up, out hit, minimumDistanceNeededToBeginFall, ~ignoreForGroundCheck);
-
-            if (grounded)
-            {
-                _normalVector = hit.normal;
-                Vector3 tp = hit.point;
-                _playerManager.isGrounded = true;
-                _targetPosition.y = tp.y;
-
-                bool shouldLand = inAirTimer > timeToLand;
-
-                if (shouldLand) { _animatorHandler.PlayTargetAnimation("Land", true); }
-                else { _animatorHandler.PlayTargetAnimation("Locomotion", false); }
-
-                inAirTimer = 0;
-                _playerManager.isInAir = false;
-            }
-            else
-            {
-                if (_playerManager.isGrounded) { _playerManager.isGrounded = false; }
-                if (!_playerManager.isInAir)
-                {
-                    if (!_playerManager.isInteracting) { _animatorHandler.PlayTargetAnimation("Falling", true); }
-                    Vector3 velocity = rigidbody.velocity;
-                    velocity.Normalize();
-                    rigidbody.velocity = velocity * (movementSpeed / 2);
-                    _playerManager.isInAir = true;
-                }
-            }
-
-            if (_playerManager.isGrounded)
-            {
-                if (_playerManager.isInteracting || _inputHandler.MoveAmount > 0)
-                {
-                    _transform.position = Vector3.Lerp(_transform.position, _targetPosition, delta);
-                }
-                else { _transform.position = _targetPosition; }
+                delta += Time.deltaTime;
+                _characterController.Move(-_moveDirection.normalized * backstepVelocity * delta);
+                yield return null;
             }
 
         }
+
+        public void HandleJumping(float delta)
+        {
+            if (_playerManager.isInteracting || !_inputHandler.jumpFlag || !_playerManager.isGrounded) return;
+
+            StartCoroutine(JumpingCo(delta));
+            _inputHandler.jumpFlag = false;
+        }
+
+        private IEnumerator JumpingCo(float delta)
+        {
+            _animatorHandler.PlayTargetAnimation("Jumping", true);
+            float startTime = delta;
+
+            while (delta < startTime + jumpTime)
+            {
+                delta += Time.deltaTime;
+                Vector3 jumpDirection =  Vector3.up * jumpHeight * delta;
+                _characterController.Move(jumpDirection);
+                yield return null;
+            }
+        }
+
     }
 }

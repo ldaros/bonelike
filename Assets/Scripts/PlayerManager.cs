@@ -6,47 +6,49 @@ namespace Bone
 {
     public class PlayerManager : MonoBehaviour
     {
-
-        PlayerLocomotion playerLocomotion;
         Animator animator;
 
         [Header("Flags")]
         public bool isInteracting;
         public bool isSprinting;
+        public bool isJumping;
         public bool isInAir;
         public bool isGrounded;
 
         private CameraHandler _cameraHandler;
         private InputHandler _inputHandler;
+        private PlayerLocomotion _playerLocomotion;
 
-        void Start()
+        private void Awake()
         {
-            playerLocomotion = GetComponent<PlayerLocomotion>();
             animator = GetComponentInChildren<Animator>();
+            _playerLocomotion = GetComponent<PlayerLocomotion>();
             _cameraHandler = GetComponent<CameraHandler>();
             _inputHandler = GetComponent<InputHandler>();
+        }
 
+        private void Start()
+        {
             _cameraHandler.EnableCursorLock();
         }
 
-        void Update()
+        private void Update()
         {
             float delta = Time.deltaTime;
-            
             isInteracting = animator.GetBool("isInteracting");
-            
-            playerLocomotion.HandleMovement(delta);
-            playerLocomotion.HandleRollingAndSprinting(delta);
-            playerLocomotion.HandleFalling(delta, playerLocomotion.moveDirection);
+
+            _playerLocomotion.HandleMovement(delta);
+            _playerLocomotion.HandleFalling(delta);
+            _playerLocomotion.HandleRolling(delta);
+            _playerLocomotion.HandleJumping(delta);
         }
 
-        void LateUpdate()
+        private void LateUpdate()
         {
             _inputHandler.sprintFlag = false;
             _inputHandler.rollFlag = false;
+            _inputHandler.jumpFlag = false;
             isSprinting = _inputHandler.B_Input;
-
-            if (isInAir) { playerLocomotion.inAirTimer += Time.deltaTime; }
         }
 
     }

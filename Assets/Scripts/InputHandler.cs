@@ -10,10 +10,12 @@ namespace Bone
         public float MouseX { get; private set; }
         public float MouseY { get; private set; }
         public bool B_Input { get; private set; }
+        public bool A_Input { get; private set; }
 
         public bool rollFlag;
         public bool sprintFlag;
         public float rollInputTimer;
+        public bool jumpFlag;
 
         private PlayerControls _inputActions;
         private Vector2 _movementInput;
@@ -34,7 +36,8 @@ namespace Bone
         private void Update()
         {
             UpdateInputValues();
-            handleBInput();
+            HandleB();
+            HandleA();
         }
 
         private void UpdateInputValues()
@@ -46,7 +49,7 @@ namespace Bone
             MouseY = _cameraInput.y;
         }
 
-        private void handleBInput()
+        private void HandleB()
         {
             B_Input = _inputActions.PlayerActions.Roll.IsPressed();
             bool quickPress = rollInputTimer > 0 && rollInputTimer < 0.2f;
@@ -62,6 +65,12 @@ namespace Bone
                 rollInputTimer = 0;
                 sprintFlag = false;
             }
+        }
+
+        private void HandleA()
+        {
+            A_Input = _inputActions.PlayerActions.Jump.IsPressed();
+            jumpFlag = A_Input;
         }
     }
 }
