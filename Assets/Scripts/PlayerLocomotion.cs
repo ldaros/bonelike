@@ -168,7 +168,7 @@ namespace Bone
             while (delta < startTime + jumpTime)
             {
                 delta += Time.deltaTime;
-                Vector3 jumpDirection =  Vector3.up * jumpHeight * delta;
+                Vector3 jumpDirection = Vector3.up * jumpHeight * delta;
                 _characterController.Move(jumpDirection);
                 yield return null;
             }
